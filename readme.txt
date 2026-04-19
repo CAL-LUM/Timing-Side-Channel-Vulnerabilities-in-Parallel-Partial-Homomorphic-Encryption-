@@ -9,8 +9,11 @@
 
 This repository contains the full implementation, experimental results, and dissertation for an investigation into timing side-channel vulnerabilities introduced through parallelism in Partial Homomorphic Encryption (PHE) algorithms.
 
-While parallel processing has become the dominant optimisation strategy for PHE deployments, its security implications — particularly with respect to timing side-channel leakage in the decryption phase — remain unevaluated in existing literature. This research identifies and characterises three structural timing leakage vectors introduced by parallel Paillier decryption, develops a novel evaluation framework (CP-TVLA), and proactively implements and evaluates three countermeasures against it.
+## Problem Statement
+Current advancements in Partial Homomorphic Encryption have largely been driven by  the need for greater computational efficiency and yet security considerations of optimisation methods, such as parallel processing, remain unexplored. As a result, existing implementations risk introducing novel attack vectors and compromising the integrity of encrypted data. 
 
+## Proposed solution
+This research addresses the identified gap through a structured three-part approach. Firstly, a Paillier-based e-voting system is implemented in three configurations, sequential baseline, unprotected parallel and secure parallel, to expose and characterise timing side-channel leakage vectors introduced through parallelism. A Candidate-Partitioned TVLA based analytical framework is developed to evaluate leakage systematically, adapting a hardware-oriented methodology to a software timing context. Finally, three structural countermeasures targeting each identified leakage vector are proactively implemented and evaluated for both effectiveness in eliminating leakage and impact on computational overhead relative to an unprotected baseline. 
 ---
 
 ## Repository Structure
