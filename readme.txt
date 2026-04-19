@@ -26,7 +26,7 @@ This research addresses the identified gap through a structured three-part appro
 │   └── go.sum
 │
 ├── Python Analysis/
-│   └── analysis.py       - TVLA analysis, statistics, and plot generation
+│   └── analysis.py       - TVLA analysis and statistics
 │
 ├── Results/              - Results at N = 1,000, 5,000 and 10,000
 │   ├── N = 1000/
