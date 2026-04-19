@@ -26,15 +26,18 @@ from itertools import combinations
 
 warnings.filterwarnings("ignore")
 
-RESULTS_DIR = "results"
-REPORT_PATH = os.path.join(RESULTS_DIR, "analysis_report.txt")
+# Output directory and report path.
+resultsDir = "results"
+reportPath = os.path.join(resultsDir, "analysis_report.txt")
 
-TVLA_THRESHOLD = 4.5
+# Detection threshold |t| > 4.5 corresponds to a false-positive rate of
+# approximately 1 in 100,000 under the null hypothesis.
+tvlaThreshold = 4.5
 
 # Must match PaddingDeadlineMs in main.go.
-PADDING_DEADLINE_MS = 20
+paddingDeadlineMs = 20
 
-SYSTEMS = ["sequential", "parallel", "secure"]
+systems = ["sequential", "parallel", "secure"]
 
 # Metrics available per system.
 # heap_allocs and heap_bytes are sequential-only: runtime.ReadMemStats is a
@@ -42,27 +45,28 @@ SYSTEMS = ["sequential", "parallel", "secure"]
 # concurrent goroutines would capture allocations from neighbouring operations,
 # producing meaningless cross-goroutine interference values.
 # cpu_cycles is available for all three systems via the QPC tick counter.
-SYSTEM_METRICS = {
+systemMetrics = {
     "sequential": ["duration_ns", "cpu_cycles", "heap_allocs", "heap_bytes"],
     "parallel":   ["duration_ns", "cpu_cycles"],
     "secure":     ["duration_ns", "cpu_cycles"],
 }
 
-ALL_METRICS = ["duration_ns", "cpu_cycles", "heap_allocs", "heap_bytes"]
+allMetrics = ["duration_ns", "cpu_cycles", "heap_allocs", "heap_bytes"]
 
-METRIC_LABELS = {
+# Human-readable labels used in the report and CSV headers.
+metricLabels = {
     "duration_ns":  "Duration (ns)",
     "cpu_cycles":   "CPU Cycles (count)",
     "heap_allocs":  "Heap Allocations (count)",
     "heap_bytes":   "Heap Bytes Allocated",
 }
 
-os.makedirs(RESULTS_DIR, exist_ok=True)
+os.makedirs(resultsDir, exist_ok=True)
 
 
-# ── Data loading ───────────────────────────────────────────────────────────────
+# Data loading
 
-def load_data():
+def loadData():
     # Load timing CSVs for all three systems and combine into a single
     # data frame. Missing metric columns are filled with NaN so that
     # downstream code can reference every column without branching.
@@ -72,12 +76,13 @@ def load_data():
         ("parallel_timings.csv",   "parallel"),
         ("secure_timings.csv",     "secure"),
     ]:
-        path = os.path.join(RESULTS_DIR, fname)
+        path = os.path.join(resultsDir, fname)
         if not os.path.exists(path):
             print(f"  WARNING: {path} not found — skipping {system}")
             continue
         df = pd.read_csv(path)
 
+        # Add missing columns as NaN rather than raising a KeyError later.
         for col in ["cpu_cycles", "heap_allocs", "heap_bytes"]:
             if col not in df.columns:
                 df[col] = np.nan
@@ -99,17 +104,17 @@ def load_data():
     return df, candidates
 
 
-# ── Descriptive statistics ─────────────────────────────────────────────────────
+# Descriptive statistics
 
-def descriptive_stats(df, candidates):
+def descriptiveStats(df, candidates):
     # Compute per-system, per-candidate summary statistics for every metric
     # that is available in that system. CV (coefficient of variation) is
     # particularly useful here because it normalises spread by the mean,
     # allowing noise levels to be compared across systems that have different
     # absolute decryption times.
     rows = []
-    for system in SYSTEMS:
-        available = SYSTEM_METRICS[system]
+    for system in systems:
+        available = systemMetrics[system]
         for cand in candidates:
             sub = df[(df["system"] == system) & (df["candidate_name"] == cand)]
             if sub.empty:
@@ -125,7 +130,7 @@ def descriptive_stats(df, candidates):
                     "n":         len(s),
                     "mean":      s.mean(),
                     "std":       s.std(),
-                    "cv_pct":    s.std() / s.mean() * 100 if s.mean() != 0 else 0,
+                    "cvPct":     s.std() / s.mean() * 100 if s.mean() != 0 else 0,
                     "median":    s.median(),
                     "p95":       s.quantile(0.95),
                     "p99":       s.quantile(0.99),
@@ -134,9 +139,9 @@ def descriptive_stats(df, candidates):
     return pd.DataFrame(rows)
 
 
-# ── Overhead analysis ──────────────────────────────────────────────────────────
+# Overhead analysis
 
-def compute_overhead(stats_df):
+def computeOverhead(statsDF):
     # Calculate mean computational overhead of each system relative to the
     # sequential baseline, averaged across all candidates.
     #
@@ -147,88 +152,94 @@ def compute_overhead(stats_df):
     # the cpu_cycles measurement window. The difference between the two metrics
     # therefore isolates CM3's wall-clock contribution from the true cost of CM1.
     rows = []
-    overhead_summary = {}
+    overheadSummary = {}
 
     for metric in ["duration_ns", "cpu_cycles"]:
-        seq_means = {}
-        par_means = {}
-        sec_means = {}
 
-        for system, store in [("sequential", seq_means),
-                               ("parallel",   par_means),
-                               ("secure",     sec_means)]:
-            sub = stats_df[(stats_df["system"] == system) &
-                           (stats_df["metric"] == metric)]
+        # Collect per-candidate means for each system into separate dicts
+        # so overhead percentages can be calculated candidate-by-candidate.
+        seqMeans = {}
+        parMeans = {}
+        secMeans = {}
+
+        for system, store in [("sequential", seqMeans),
+                               ("parallel",   parMeans),
+                               ("secure",     secMeans)]:
+            sub = statsDF[(statsDF["system"] == system) &
+                          (statsDF["metric"] == metric)]
             for _, row in sub.iterrows():
                 store[row["candidate"]] = row["mean"]
 
-        candidates = list(seq_means.keys())
+        candidates = list(seqMeans.keys())
 
-        par_vs_seq_list = []
-        sec_vs_seq_list = []
-        sec_vs_par_list = []
+        parVsSeqList = []
+        secVsSeqList = []
+        secVsParList = []
 
         for cand in candidates:
-            if cand not in seq_means:
+            if cand not in seqMeans:
                 continue
-            seq = seq_means[cand]
-            par = par_means.get(cand)
-            sec = sec_means.get(cand)
+            seq = seqMeans[cand]
+            par = parMeans.get(cand)
+            sec = secMeans.get(cand)
 
-            par_vs_seq = ((par - seq) / seq * 100) if par is not None else None
-            sec_vs_seq = ((sec - seq) / seq * 100) if sec is not None else None
-            sec_vs_par = ((sec - par) / par * 100) if (par is not None and sec is not None) else None
+            # Percentage overhead relative to the appropriate baseline.
+            parVsSeq = ((par - seq) / seq * 100) if par is not None else None
+            secVsSeq = ((sec - seq) / seq * 100) if sec is not None else None
+            secVsPar = ((sec - par) / par * 100) if (par is not None and sec is not None) else None
 
-            if par_vs_seq is not None:
-                par_vs_seq_list.append(par_vs_seq)
-            if sec_vs_seq is not None:
-                sec_vs_seq_list.append(sec_vs_seq)
-            if sec_vs_par is not None:
-                sec_vs_par_list.append(sec_vs_par)
+            if parVsSeq is not None:
+                parVsSeqList.append(parVsSeq)
+            if secVsSeq is not None:
+                secVsSeqList.append(secVsSeq)
+            if secVsPar is not None:
+                secVsParList.append(secVsPar)
 
             rows.append({
-                "metric":        metric,
-                "candidate":     cand,
-                "seq_mean":      seq,
-                "par_mean":      par,
-                "sec_mean":      sec,
-                "par_vs_seq_%":  par_vs_seq,
-                "sec_vs_seq_%":  sec_vs_seq,
-                "sec_vs_par_%":  sec_vs_par,
+                "metric":       metric,
+                "candidate":    cand,
+                "seqMean":      seq,
+                "parMean":      par,
+                "secMean":      sec,
+                "parVsSeqPct":  parVsSeq,
+                "secVsSeqPct":  secVsSeq,
+                "secVsParPct":  secVsPar,
             })
 
-        overhead_summary[metric] = {
-            "par_vs_seq_mean_%":          np.mean(par_vs_seq_list) if par_vs_seq_list else None,
-            "sec_vs_seq_mean_%":          np.mean(sec_vs_seq_list) if sec_vs_seq_list else None,
-            "sec_vs_par_mean_%":          np.mean(sec_vs_par_list) if sec_vs_par_list else None,
-            "par_vs_seq_per_candidate":   dict(zip(candidates, par_vs_seq_list)),
-            "sec_vs_seq_per_candidate":   dict(zip(candidates, sec_vs_seq_list)),
-            "sec_vs_par_per_candidate":   dict(zip(candidates, sec_vs_par_list)),
+        # Store mean overhead across all candidates alongside the per-candidate
+        # breakdown so the report can print both summary and detailed tables.
+        overheadSummary[metric] = {
+            "parVsSeqMeanPct":       np.mean(parVsSeqList) if parVsSeqList else None,
+            "secVsSeqMeanPct":       np.mean(secVsSeqList) if secVsSeqList else None,
+            "secVsParMeanPct":       np.mean(secVsParList) if secVsParList else None,
+            "parVsSeqPerCandidate":  dict(zip(candidates, parVsSeqList)),
+            "secVsSeqPerCandidate":  dict(zip(candidates, secVsSeqList)),
+            "secVsParPerCandidate":  dict(zip(candidates, secVsParList)),
         }
 
-    return pd.DataFrame(rows), overhead_summary
+    return pd.DataFrame(rows), overheadSummary
 
 
-# ── TVLA ───────────────────────────────────────────────────────────────────────
+# TVLA
 
-def tvla_test(a, b):
+def tvlaTest(a, b):
     # Welch's t-test with unequal variance assumption.
-    # Returns (t_stat, p_value, leakage_flag) where leakage_flag is True
+    # Returns (tStat, pValue, leakageFlag) where leakageFlag is True
     # when |t| exceeds the 4.5 detection threshold.
     if len(a) < 2 or len(b) < 2:
         return np.nan, np.nan, False
     t, p = ttest_ind(a, b, equal_var=False)
-    return t, p, abs(t) > TVLA_THRESHOLD
+    return t, p, abs(t) > tvlaThreshold
 
 
-def _metric_valid_for_pair(metric, sysA, sysB):
+def metricValidForPair(metric, sysA, sysB):
     # Return True only if both systems recorded real data for this metric.
     # Prevents heap metrics from appearing in parallel/secure comparisons.
-    return (metric in SYSTEM_METRICS[sysA] and
-            metric in SYSTEM_METRICS[sysB])
+    return (metric in systemMetrics[sysA] and
+            metric in systemMetrics[sysB])
 
 
-def run_tvla(df, candidates):
+def runTVLA(df, candidates):
     # Execute all four groups of TVLA comparisons and collect results.
     #
     # Group 1 — Cross-system, all candidates pooled.
@@ -248,40 +259,40 @@ def run_tvla(df, candidates):
     rows = []
 
     # Group 1: cross-system, all candidates pooled.
-    for sysA, sysB in combinations(SYSTEMS, 2):
-        for metric in ALL_METRICS:
-            if not _metric_valid_for_pair(metric, sysA, sysB):
+    for sysA, sysB in combinations(systems, 2):
+        for metric in allMetrics:
+            if not metricValidForPair(metric, sysA, sysB):
                 continue
             a = df[df["system"] == sysA][metric].dropna()
             b = df[df["system"] == sysB][metric].dropna()
-            t, p, leak = tvla_test(a, b)
+            t, p, leak = tvlaTest(a, b)
             rows.append({
                 "metric":     metric,
                 "comparison": f"{sysA} vs {sysB}",
                 "scope":      "all candidates pooled",
-                "n_a": len(a), "n_b": len(b),
-                "mean_a": a.mean(), "mean_b": b.mean(),
-                "t_stat": t, "p_value": p, "leakage": leak,
+                "nA": len(a), "nB": len(b),
+                "meanA": a.mean(), "meanB": b.mean(),
+                "tStat": t, "pValue": p, "leakage": leak,
             })
 
     # Group 2: cross-system, per candidate.
     for cand in candidates:
-        for sysA, sysB in combinations(SYSTEMS, 2):
-            for metric in ALL_METRICS:
-                if not _metric_valid_for_pair(metric, sysA, sysB):
+        for sysA, sysB in combinations(systems, 2):
+            for metric in allMetrics:
+                if not metricValidForPair(metric, sysA, sysB):
                     continue
                 a = df[(df["system"] == sysA) &
                        (df["candidate_name"] == cand)][metric].dropna()
                 b = df[(df["system"] == sysB) &
                        (df["candidate_name"] == cand)][metric].dropna()
-                t, p, leak = tvla_test(a, b)
+                t, p, leak = tvlaTest(a, b)
                 rows.append({
                     "metric":     metric,
                     "comparison": f"{sysA} vs {sysB}",
                     "scope":      f"candidate: {cand}",
-                    "n_a": len(a), "n_b": len(b),
-                    "mean_a": a.mean(), "mean_b": b.mean(),
-                    "t_stat": t, "p_value": p, "leakage": leak,
+                    "nA": len(a), "nB": len(b),
+                    "meanA": a.mean(), "meanB": b.mean(),
+                    "tStat": t, "pValue": p, "leakage": leak,
                 })
 
     # Group 3: within-parallel candidate pairs.
@@ -290,14 +301,14 @@ def run_tvla(df, candidates):
         for metric in ["duration_ns", "cpu_cycles"]:
             a = par[par["candidate_name"] == cA][metric].dropna()
             b = par[par["candidate_name"] == cB][metric].dropna()
-            t, p, leak = tvla_test(a, b)
+            t, p, leak = tvlaTest(a, b)
             rows.append({
                 "metric":     metric,
                 "comparison": f"{cA} vs {cB}",
                 "scope":      "within-parallel",
-                "n_a": len(a), "n_b": len(b),
-                "mean_a": a.mean(), "mean_b": b.mean(),
-                "t_stat": t, "p_value": p, "leakage": leak,
+                "nA": len(a), "nB": len(b),
+                "meanA": a.mean(), "meanB": b.mean(),
+                "tStat": t, "pValue": p, "leakage": leak,
             })
 
     # Group 4: within-secure candidate pairs.
@@ -306,25 +317,29 @@ def run_tvla(df, candidates):
         for metric in ["duration_ns", "cpu_cycles"]:
             a = sec[sec["candidate_name"] == cA][metric].dropna()
             b = sec[sec["candidate_name"] == cB][metric].dropna()
-            t, p, leak = tvla_test(a, b)
+            t, p, leak = tvlaTest(a, b)
             rows.append({
                 "metric":     metric,
                 "comparison": f"{cA} vs {cB}",
                 "scope":      "within-secure",
-                "n_a": len(a), "n_b": len(b),
-                "mean_a": a.mean(), "mean_b": b.mean(),
-                "t_stat": t, "p_value": p, "leakage": leak,
+                "nA": len(a), "nB": len(b),
+                "meanA": a.mean(), "meanB": b.mean(),
+                "tStat": t, "pValue": p, "leakage": leak,
             })
 
     return pd.DataFrame(rows)
 
 
-# ── Text report ────────────────────────────────────────────────────────────────
+# Text report
 
-def write_report(df, stats_df, tvla_df, candidates, overhead_summary):
+def writeReport(df, statsDF, tvlaDF, candidates, overheadSummary):
     # Build and write the full structured analysis report to results/analysis_report.txt.
+    # The report is assembled as a list of strings and joined at the end to
+    # avoid repeated file writes and to keep formatting logic in one place.
     sep  = "=" * 78
     sep2 = "-" * 78
+
+    # Header block summarises the run configuration so the report is self-contained.
     lines = [
         sep,
         "  TVLA SECURITY ANALYSIS REPORT",
@@ -333,11 +348,11 @@ def write_report(df, stats_df, tvla_df, candidates, overhead_summary):
         sep, "",
         f"  Records    : {len(df):,}",
         f"  Systems    : " + "  ".join(
-            f"{s} ({len(df[df['system']==s]):,})" for s in SYSTEMS
+            f"{s} ({len(df[df['system']==s]):,})" for s in systems
             if s in df['system'].values
         ),
         f"  Candidates : {', '.join(candidates)}",
-        f"  Threshold  : |t| > {TVLA_THRESHOLD}",
+        f"  Threshold  : |t| > {tvlaThreshold}",
         "",
         "  Metric availability per system:",
         "    sequential  — duration_ns, cpu_cycles, heap_allocs, heap_bytes",
@@ -356,17 +371,17 @@ def write_report(df, stats_df, tvla_df, candidates, overhead_summary):
         "    The divergence between duration_ns and cpu_cycles overhead for the",
         "    secure system therefore isolates CM3's wall-clock contribution from",
         "    the true computational cost of CM1 ciphertext blinding.",
-        f"  Secure system padding deadline: {PADDING_DEADLINE_MS} ms (CM3)",
+        f"  Secure system padding deadline: {paddingDeadlineMs} ms (CM3)",
         "",
     ]
 
-    # Descriptive statistics section.
-    for metric in ALL_METRICS:
-        relevant_systems = [s for s in SYSTEMS if metric in SYSTEM_METRICS[s]]
-        if not relevant_systems:
+    # Descriptive statistics section — one table per metric, systems stacked.
+    for metric in allMetrics:
+        relevantSystems = [s for s in systems if metric in systemMetrics[s]]
+        if not relevantSystems:
             continue
 
-        lines += [sep2, f"  DESCRIPTIVE STATISTICS — {METRIC_LABELS[metric]}", sep2]
+        lines += [sep2, f"  DESCRIPTIVE STATISTICS — {metricLabels[metric]}", sep2]
         if metric in ("heap_allocs", "heap_bytes"):
             lines.append("  (sequential only — parallel and secure omit this metric)")
         lines.append("")
@@ -377,22 +392,22 @@ def write_report(df, stats_df, tvla_df, candidates, overhead_summary):
         lines.append(header)
         lines.append("  " + "-" * (len(header) - 2))
 
-        for system in relevant_systems:
+        for system in relevantSystems:
             for cand in candidates:
-                row = stats_df[(stats_df["system"] == system) &
-                               (stats_df["candidate"] == cand) &
-                               (stats_df["metric"] == metric)]
+                row = statsDF[(statsDF["system"] == system) &
+                              (statsDF["candidate"] == cand) &
+                              (statsDF["metric"] == metric)]
                 if row.empty:
                     continue
                 r = row.iloc[0]
                 lines.append(
                     f"  {system:<12} {cand:<10} {int(r['n']):>5} "
-                    f"{r['mean']:>14.2f} {r['std']:>14.2f} {r['cv_pct']:>7.2f} "
+                    f"{r['mean']:>14.2f} {r['std']:>14.2f} {r['cvPct']:>7.2f} "
                     f"{r['median']:>14.2f} {r['p99']:>14.2f}"
                 )
             lines.append("")
 
-    # Overhead section.
+    # Overhead section — summary percentages followed by per-candidate breakdown.
     lines += [sep2, "  COMPUTATIONAL OVERHEAD ANALYSIS", sep2, ""]
     lines.append("  Overhead is calculated per candidate relative to the sequential")
     lines.append("  baseline and then averaged across all five candidates.")
@@ -402,19 +417,19 @@ def write_report(df, stats_df, tvla_df, candidates, overhead_summary):
     lines.append("")
 
     for metric in ["duration_ns", "cpu_cycles"]:
-        oh = overhead_summary[metric]
-        lines.append(f"  [{METRIC_LABELS[metric]}]")
+        oh = overheadSummary[metric]
+        lines.append(f"  [{metricLabels[metric]}]")
         lines.append(
             f"    Parallel vs Sequential  : "
-            f"{oh['par_vs_seq_mean_%']:+.2f}% mean overhead"
+            f"{oh['parVsSeqMeanPct']:+.2f}% mean overhead"
         )
         lines.append(
             f"    Secure   vs Sequential  : "
-            f"{oh['sec_vs_seq_mean_%']:+.2f}% mean overhead"
+            f"{oh['secVsSeqMeanPct']:+.2f}% mean overhead"
         )
         lines.append(
             f"    Secure   vs Parallel    : "
-            f"{oh['sec_vs_par_mean_%']:+.2f}% mean overhead  "
+            f"{oh['secVsParMeanPct']:+.2f}% mean overhead  "
             f"(countermeasure cost above unprotected parallel baseline)"
         )
         lines.append("")
@@ -423,138 +438,157 @@ def write_report(df, stats_df, tvla_df, candidates, overhead_summary):
                   f"{'Sec mean':>14} {'Par vs Seq':>12} {'Sec vs Par':>12}")
         lines.append(header)
         lines.append("    " + "-" * (len(header) - 4))
-        cands = list(oh["sec_vs_par_per_candidate"].keys())
+        cands = list(oh["secVsParPerCandidate"].keys())
         for cand in cands:
-            par_oh = oh["par_vs_seq_per_candidate"].get(cand)
-            sec_oh = oh["sec_vs_par_per_candidate"].get(cand)
+            parOh = oh["parVsSeqPerCandidate"].get(cand)
+            secOh = oh["secVsParPerCandidate"].get(cand)
 
-            def get_mean(system, candidate, m):
-                sub = stats_df[(stats_df["system"] == system) &
-                               (stats_df["candidate"] == candidate) &
-                               (stats_df["metric"] == m)]
+            # Inner helper to pull the mean for a specific system/candidate/metric
+            # combination from the stats data frame without repeating the filter.
+            def getMean(system, candidate, m):
+                sub = statsDF[(statsDF["system"] == system) &
+                              (statsDF["candidate"] == candidate) &
+                              (statsDF["metric"] == m)]
                 return sub.iloc[0]["mean"] if not sub.empty else float("nan")
 
-            seq_m = get_mean("sequential", cand, metric)
-            par_m = get_mean("parallel",   cand, metric)
-            sec_m = get_mean("secure",     cand, metric)
+            seqM = getMean("sequential", cand, metric)
+            parM = getMean("parallel",   cand, metric)
+            secM = getMean("secure",     cand, metric)
             lines.append(
-                f"    {cand:<12} {seq_m:>14.0f} {par_m:>14.0f} {sec_m:>14.0f} "
-                f"{par_oh:>+11.2f}% {sec_oh:>+11.2f}%"
+                f"    {cand:<12} {seqM:>14.0f} {parM:>14.0f} {secM:>14.0f} "
+                f"{parOh:>+11.2f}% {secOh:>+11.2f}%"
             )
         lines.append("")
 
-    # TVLA results section.
+    # TVLA results section — results grouped by scope, sorted by |t| descending
+    # so the largest potential signals appear first.
     lines += [sep2,
-              f"  TVLA RESULTS — Welch t-test  (|t| > {TVLA_THRESHOLD} = leakage detected)",
+              f"  TVLA RESULTS — Welch t-test  (|t| > {tvlaThreshold} = leakage detected)",
               sep2, ""]
 
-    scope_order = [
+    # Scope order controls the visual grouping in the report: cross-system
+    # comparisons first (framework validation), within-system comparisons last
+    # (the security-critical results).
+    scopeOrder = [
         ("all candidates pooled", "Cross-system, all candidates pooled"),
         ("candidate:",            "Cross-system, per candidate"),
         ("within-parallel",       "Within-parallel (candidate distinguishability)"),
         ("within-secure",         "Within-secure (countermeasure effectiveness)"),
     ]
 
-    for metric in ALL_METRICS:
-        sub_metric = tvla_df[tvla_df["metric"] == metric]
-        if sub_metric.empty:
+    for metric in allMetrics:
+        subMetric = tvlaDF[tvlaDF["metric"] == metric]
+        if subMetric.empty:
             continue
-        lines.append(f"  [{METRIC_LABELS[metric]}]")
+        lines.append(f"  [{metricLabels[metric]}]")
 
-        for scope_prefix, scope_label in scope_order:
-            if scope_prefix.endswith(":"):
-                sub = sub_metric[sub_metric["scope"].str.startswith(scope_prefix)]
+        for scopePrefix, scopeLabel in scopeOrder:
+            if scopePrefix.endswith(":"):
+                sub = subMetric[subMetric["scope"].str.startswith(scopePrefix)]
             else:
-                sub = sub_metric[sub_metric["scope"] == scope_prefix]
+                sub = subMetric[subMetric["scope"] == scopePrefix]
             if sub.empty:
                 continue
 
-            lines.append(f"    {scope_label}:")
+            lines.append(f"    {scopeLabel}:")
             lines.append(
                 f"    {'Comparison':<28} {'Scope':<30} "
                 f"{'t-stat':>8} {'p-value':>10} {'Result':>14}"
             )
             lines.append("    " + "-" * 94)
-            sub = sub.sort_values("t_stat", key=abs, ascending=False)
+
+            # Sort by absolute t-statistic so the largest signals appear first.
+            sub = sub.sort_values("tStat", key=abs, ascending=False)
             for _, row in sub.iterrows():
                 result = "*** LEAK ***" if row["leakage"] else "no leakage"
-                scope_display = (row["scope"] if len(row["scope"]) <= 30
-                                 else row["scope"][:27] + "...")
+                scopeDisplay = (row["scope"] if len(row["scope"]) <= 30
+                                else row["scope"][:27] + "...")
                 lines.append(
-                    f"    {row['comparison']:<28} {scope_display:<30} "
-                    f"{row['t_stat']:>8.3f} {row['p_value']:>10.4f} {result:>14}"
+                    f"    {row['comparison']:<28} {scopeDisplay:<30} "
+                    f"{row['tStat']:>8.3f} {row['pValue']:>10.4f} {result:>14}"
                 )
             lines.append("")
 
-    # Summary section.
+    # Summary section — violation counts and a final verdict on countermeasure
+    # effectiveness at the configured padding deadline.
     lines += [sep2, "  SUMMARY", sep2, ""]
-    total_leaks = tvla_df["leakage"].sum()
-    par_within  = tvla_df[tvla_df["scope"] == "within-parallel"]
-    sec_within  = tvla_df[tvla_df["scope"] == "within-secure"]
-    par_leaks   = par_within["leakage"].sum()
-    sec_leaks   = sec_within["leakage"].sum()
-    cross_leaks = tvla_df[
-        ~tvla_df["scope"].isin(["within-parallel", "within-secure"]) &
-        tvla_df["leakage"]
+    totalLeaks = tvlaDF["leakage"].sum()
+    parWithin  = tvlaDF[tvlaDF["scope"] == "within-parallel"]
+    secWithin  = tvlaDF[tvlaDF["scope"] == "within-secure"]
+    parLeaks   = parWithin["leakage"].sum()
+    secLeaks   = secWithin["leakage"].sum()
+
+    # Cross-system leaks are expected by design and excluded from the verdict.
+    crossLeaks = tvlaDF[
+        ~tvlaDF["scope"].isin(["within-parallel", "within-secure"]) &
+        tvlaDF["leakage"]
     ].shape[0]
 
-    lines.append(f"  Total TVLA violations         : {total_leaks} / {len(tvla_df)}")
-    lines.append(f"  Cross-system leaks            : {cross_leaks}")
-    lines.append(f"  Within-parallel leaks         : {par_leaks} / {len(par_within)}"
-                 f"  ({'candidate distinguishable' if par_leaks > 0 else 'candidates indistinguishable'})")
-    lines.append(f"  Within-secure leaks           : {sec_leaks} / {len(sec_within)}")
+    lines.append(f"  Total TVLA violations         : {totalLeaks} / {len(tvlaDF)}")
+    lines.append(f"  Cross-system leaks            : {crossLeaks}")
+    lines.append(f"  Within-parallel leaks         : {parLeaks} / {len(parWithin)}"
+                 f"  ({'candidate distinguishable' if parLeaks > 0 else 'candidates indistinguishable'})")
+    lines.append(f"  Within-secure leaks           : {secLeaks} / {len(secWithin)}")
 
-    oh_dur = overhead_summary.get("duration_ns", {})
-    oh_cyc = overhead_summary.get("cpu_cycles", {})
+    ohDur = overheadSummary.get("duration_ns", {})
+    ohCyc = overheadSummary.get("cpu_cycles", {})
     lines.append("")
     lines.append(f"  Overhead (secure vs parallel baseline):")
-    if oh_dur.get("sec_vs_par_mean_%") is not None:
-        lines.append(f"    duration_ns : {oh_dur['sec_vs_par_mean_%']:+.2f}%  "
+    if ohDur.get("secVsParMeanPct") is not None:
+        lines.append(f"    duration_ns : {ohDur['secVsParMeanPct']:+.2f}%  "
                      f"(wall-clock, includes CM3 padding)")
-    if oh_cyc.get("sec_vs_par_mean_%") is not None:
-        lines.append(f"    cpu_cycles  : {oh_cyc['sec_vs_par_mean_%']:+.2f}%  "
+    if ohCyc.get("secVsParMeanPct") is not None:
+        lines.append(f"    cpu_cycles  : {ohCyc['secVsParMeanPct']:+.2f}%  "
                      f"(computational work only, excludes CM3)")
 
-    if sec_leaks == 0:
-        verdict = (f"  Verdict: countermeasures effective at PaddingDeadlineMs={PADDING_DEADLINE_MS}ms")
+    # Verdict: if no within-secure leaks are detected, countermeasures are
+    # effective at the current padding deadline. If leaks are detected, the
+    # deadline needs to be increased in both main.go and paddingDeadlineMs above.
+    if secLeaks == 0:
+        verdict = (f"  Verdict: countermeasures effective at PaddingDeadlineMs={paddingDeadlineMs}ms")
     else:
-        verdict = (f"  Verdict: WARNING — increase PaddingDeadlineMs above {PADDING_DEADLINE_MS}ms")
+        verdict = (f"  Verdict: WARNING — increase PaddingDeadlineMs above {paddingDeadlineMs}ms")
     lines += ["", verdict, "", sep]
 
     report = "\n".join(lines)
-    with open(REPORT_PATH, "w") as f:
+    with open(reportPath, "w") as f:
         f.write(report)
-    print(f"\n  Report written to {REPORT_PATH}")
+    print(f"\n  Report written to {reportPath}")
     return report
 
 
-# ── Entry point ────────────────────────────────────────────────────────────────
+# Entry point
 
 def main():
     print("\n=== TVLA Analysis — Parallel Paillier E-Voting ===\n")
 
+    # Load and validate all three timing CSVs.
     print("Loading data...")
-    df, candidates = load_data()
+    df, candidates = loadData()
     print(f"  {len(df):,} total records")
     print(f"  Candidates: {candidates}\n")
 
+    # Compute summary statistics across all systems, candidates, and metrics.
     print("Computing descriptive statistics...")
-    stats_df = descriptive_stats(df, candidates)
+    statsDF = descriptiveStats(df, candidates)
 
+    # Calculate overhead of parallel and secure systems relative to sequential baseline.
     print("Computing overhead...")
-    overhead_df, overhead_summary = compute_overhead(stats_df)
+    overheadDF, overheadSummary = computeOverhead(statsDF)
 
+    # Run all four TVLA comparison groups and count violations.
     print("Running TVLA...")
-    tvla_df = run_tvla(df, candidates)
-    leaks = tvla_df["leakage"].sum()
+    tvlaDF = runTVLA(df, candidates)
+    leaks = tvlaDF["leakage"].sum()
     print(f"  {leaks} violation(s) detected across all metrics\n")
 
+    # Write the structured text report and export all data frames to CSV.
     print("Writing report...")
-    report = write_report(df, stats_df, tvla_df, candidates, overhead_summary)
+    report = writeReport(df, statsDF, tvlaDF, candidates, overheadSummary)
 
-    stats_df.to_csv(os.path.join(RESULTS_DIR, "descriptive_stats.csv"), index=False)
-    tvla_df.to_csv(os.path.join(RESULTS_DIR, "tvla_results.csv"), index=False)
-    overhead_df.to_csv(os.path.join(RESULTS_DIR, "overhead_analysis.csv"), index=False)
+    statsDF.to_csv(os.path.join(resultsDir, "descriptive_stats.csv"), index=False)
+    tvlaDF.to_csv(os.path.join(resultsDir, "tvla_results.csv"), index=False)
+    overheadDF.to_csv(os.path.join(resultsDir, "overhead_analysis.csv"), index=False)
     print(f"  Exported descriptive_stats.csv, tvla_results.csv, overhead_analysis.csv")
     print("\n" + report)
 
