@@ -1,9 +1,6 @@
 # Timing Side-Channel Vulnerabilities in Parallel Partial Homomorphic Encryption
 
-**BSc Cyber Security Dissertation — University of Gloucestershire, 2026 by Callum Liddell**
-*Supervised by Joe Cox*
-
----
+BSc Cyber Security Dissertation — University of Gloucestershire, 2026 by Callum Liddell
 
 ## Overview
 
@@ -14,7 +11,6 @@ Current advancements in Partial Homomorphic Encryption have largely been driven 
 
 ## Proposed solution
 This research addresses the identified gap through a structured three-part approach. Firstly, a Paillier-based e-voting system is implemented in three configurations, sequential baseline, unprotected parallel and secure parallel, to expose and characterise timing side-channel leakage vectors introduced through parallelism. A Candidate-Partitioned TVLA based analytical framework is developed to evaluate leakage systematically, adapting a hardware-oriented methodology to a software timing context. Finally, three structural countermeasures targeting each identified leakage vector are proactively implemented and evaluated for both effectiveness in eliminating leakage and impact on computational overhead relative to an unprotected baseline. 
----
 
 ## Repository Structure
 
