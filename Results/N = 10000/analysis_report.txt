@@ -1,0 +1,227 @@
+==============================================================================
+  TVLA SECURITY ANALYSIS REPORT
+  Parallel Paillier E-Voting — Decryption Phase
+  Sequential | Parallel (Unprotected) | Secure (Countermeasures Applied)
+==============================================================================
+
+  Records    : 150,000
+  Systems    : sequential (50,000)  parallel (50,000)  secure (50,000)
+  Candidates : Marcus, Trey, Will, George, Jess
+  Threshold  : |t| > 4.5
+
+  Metric availability per system:
+    sequential  — duration_ns, cpu_cycles, heap_allocs, heap_bytes
+    parallel    — duration_ns, cpu_cycles
+    secure      — duration_ns, cpu_cycles
+    (heap metrics omitted from parallel/secure: ReadMemStats is
+     stop-the-world and unsafe in concurrent goroutine context)
+
+  cpu_cycles vs duration_ns:
+    duration_ns measures wall-clock elapsed time via QPC (~100ns resolution).
+    cpu_cycles measures processor computational work via RDTSC.
+    OS scheduling pauses inflate duration_ns but not cpu_cycles.
+    Cache stalls inflate cpu_cycles but may be hidden in duration_ns.
+    CM3 (busy-wait padding) inflates duration_ns but NOT cpu_cycles,
+    since the busy-wait occurs outside the cpu_cycles measurement window.
+  Secure system padding deadline: 20 ms (CM3)
+
+------------------------------------------------------------------------------
+  DESCRIPTIVE STATISTICS — Duration (ns)
+------------------------------------------------------------------------------
+
+  System       Candidate      N           Mean            Std     CV%         Median            P99
+  -------------------------------------------------------------------------------------------------
+  sequential   Marcus     10000     2559335.11      204181.90    7.98     2543550.00     3145521.00
+  sequential   Trey       10000     2562043.68      202351.25    7.90     2546800.00     3156301.00
+  sequential   Will       10000     2559331.48      203147.91    7.94     2543900.00     3129708.00
+  sequential   George     10000     2561376.91      204385.60    7.98     2543700.00     3124874.00
+  sequential   Jess       10000     2558668.37      205815.85    8.04     2541500.00     3134372.00
+
+  parallel     Marcus     10000     2707532.71      450592.48   16.64     2555000.00     4021018.00
+  parallel     Trey       10000     2714588.78      457828.51   16.87     2554850.00     4112502.00
+  parallel     Will       10000     2705979.28      447376.78   16.53     2548700.00     4025611.00
+  parallel     George     10000     2708933.38      453212.29   16.73     2552700.00     4046836.00
+  parallel     Jess       10000     2717239.94      458998.37   16.89     2562250.00     4100926.00
+
+  secure       Marcus     10000     2969432.30      564604.25   19.01     2804450.00     4735049.00
+  secure       Trey       10000     2961607.98      559015.95   18.88     2797000.00     4700424.00
+  secure       Will       10000     2963265.15      567978.57   19.17     2793850.00     4797136.00
+  secure       George     10000     2970438.43      568303.86   19.13     2804950.00     4732621.00
+  secure       Jess       10000     2955038.43      566876.02   19.18     2786900.00     4793702.00
+
+------------------------------------------------------------------------------
+  DESCRIPTIVE STATISTICS — CPU Cycles (count)
+------------------------------------------------------------------------------
+
+  System       Candidate      N           Mean            Std     CV%         Median            P99
+  -------------------------------------------------------------------------------------------------
+  sequential   Marcus     10000       25597.60        2042.10    7.98       25440.00       31461.18
+  sequential   Trey       10000       25624.75        2023.71    7.90       25472.00       31568.01
+  sequential   Will       10000       25597.55        2031.68    7.94       25443.50       31302.09
+  sequential   George     10000       25617.99        2044.06    7.98       25441.50       31252.73
+  sequential   Jess       10000       25590.92        2058.42    8.04       25419.50       31348.70
+
+  parallel     Marcus     10000       27084.74        4510.20   16.65       25567.00       40230.26
+  parallel     Trey       10000       27152.81        4580.90   16.87       25554.50       41129.03
+  parallel     Will       10000       27066.41        4475.91   16.54       25492.50       40261.11
+  parallel     George     10000       27097.37        4535.94   16.74       25536.50       40471.36
+  parallel     Jess       10000       27178.97        4591.51   16.89       25633.50       41011.28
+
+  secure       Marcus     10000       29717.29        5661.74   19.05       28056.00       47402.69
+  secure       Trey       10000       29644.48        5625.42   18.98       27981.00       47094.03
+  secure       Will       10000       29654.15        5696.09   19.21       27960.50       47975.38
+  secure       George     10000       29738.28        5728.18   19.26       28059.50       47416.78
+  secure       Jess       10000       29579.87        5699.13   19.27       27888.00       48006.18
+
+------------------------------------------------------------------------------
+  DESCRIPTIVE STATISTICS — Heap Allocations (count)
+------------------------------------------------------------------------------
+  (sequential only — parallel and secure omit this metric)
+
+  System       Candidate      N           Mean            Std     CV%         Median            P99
+  -------------------------------------------------------------------------------------------------
+  sequential   Marcus     10000          77.03           0.25    0.32          77.00          79.00
+  sequential   Trey       10000          77.03           0.25    0.33          77.00          79.00
+  sequential   Will       10000          77.03           0.26    0.34          77.00          79.00
+  sequential   George     10000          77.03           0.25    0.33          77.00          79.00
+  sequential   Jess       10000          77.03           0.26    0.34          77.00          79.00
+
+------------------------------------------------------------------------------
+  DESCRIPTIVE STATISTICS — Heap Bytes Allocated
+------------------------------------------------------------------------------
+  (sequential only — parallel and secure omit this metric)
+
+  System       Candidate      N           Mean            Std     CV%         Median            P99
+  -------------------------------------------------------------------------------------------------
+  sequential   Marcus     10000       29851.71         250.37    0.84       29824.00       32136.00
+  sequential   Trey       10000       29851.79         251.93    0.84       29824.00       32136.00
+  sequential   Will       10000       29853.68         258.40    0.87       29824.00       32136.00
+  sequential   George     10000       29852.81         255.52    0.86       29824.00       32136.00
+  sequential   Jess       10000       29852.08         252.67    0.85       29824.00       32136.00
+
+------------------------------------------------------------------------------
+  TVLA RESULTS — Welch t-test  (|t| > 4.5 = leakage detected)
+------------------------------------------------------------------------------
+
+  [Duration (ns)]
+    Cross-system, all candidates pooled:
+    Comparison                   Scope                            t-stat    p-value         Result
+    ----------------------------------------------------------------------------------------------
+    sequential vs secure         all candidates pooled          -150.229     0.0000   *** LEAK ***
+    parallel vs secure           all candidates pooled           -78.078     0.0000   *** LEAK ***
+    sequential vs parallel       all candidates pooled           -67.752     0.0000   *** LEAK ***
+
+    Cross-system, per candidate:
+    Comparison                   Scope                            t-stat    p-value         Result
+    ----------------------------------------------------------------------------------------------
+    sequential vs secure         candidate: Marcus               -68.305     0.0000   *** LEAK ***
+    sequential vs secure         candidate: George               -67.732     0.0000   *** LEAK ***
+    sequential vs secure         candidate: Trey                 -67.209     0.0000   *** LEAK ***
+    sequential vs secure         candidate: Will                 -66.963     0.0000   *** LEAK ***
+    sequential vs secure         candidate: Jess                 -65.724     0.0000   *** LEAK ***
+    parallel vs secure           candidate: Marcus               -36.256     0.0000   *** LEAK ***
+    parallel vs secure           candidate: George               -35.976     0.0000   *** LEAK ***
+    parallel vs secure           candidate: Will                 -35.585     0.0000   *** LEAK ***
+    parallel vs secure           candidate: Trey                 -34.186     0.0000   *** LEAK ***
+    parallel vs secure           candidate: Jess                 -32.602     0.0000   *** LEAK ***
+    sequential vs parallel       candidate: Jess                 -31.523     0.0000   *** LEAK ***
+    sequential vs parallel       candidate: Trey                 -30.475     0.0000   *** LEAK ***
+    sequential vs parallel       candidate: Marcus               -29.957     0.0000   *** LEAK ***
+    sequential vs parallel       candidate: Will                 -29.846     0.0000   *** LEAK ***
+    sequential vs parallel       candidate: George               -29.679     0.0000   *** LEAK ***
+
+    Within-parallel (candidate distinguishability):
+    Comparison                   Scope                            t-stat    p-value         Result
+    ----------------------------------------------------------------------------------------------
+    Will vs Jess                 within-parallel                  -1.757     0.0790     no leakage
+    Marcus vs Jess               within-parallel                  -1.509     0.1313     no leakage
+    Trey vs Will                 within-parallel                   1.345     0.1786     no leakage
+    George vs Jess               within-parallel                  -1.288     0.1978     no leakage
+    Marcus vs Trey               within-parallel                  -1.098     0.2720     no leakage
+    Trey vs George               within-parallel                   0.878     0.3800     no leakage
+    Will vs George               within-parallel                  -0.464     0.6427     no leakage
+    Trey vs Jess                 within-parallel                  -0.409     0.6826     no leakage
+    Marcus vs Will               within-parallel                   0.245     0.8067     no leakage
+    Marcus vs George             within-parallel                  -0.219     0.8265     no leakage
+
+    Within-secure (countermeasure effectiveness):
+    Comparison                   Scope                            t-stat    p-value         Result
+    ----------------------------------------------------------------------------------------------
+    George vs Jess               within-secure                     1.919     0.0551     no leakage
+    Marcus vs Jess               within-secure                     1.799     0.0720     no leakage
+    Trey vs George               within-secure                    -1.108     0.2680     no leakage
+    Will vs Jess                 within-secure                     1.025     0.3053     no leakage
+    Marcus vs Trey               within-secure                     0.985     0.3247     no leakage
+    Will vs George               within-secure                    -0.893     0.3720     no leakage
+    Trey vs Jess                 within-secure                     0.825     0.4093     no leakage
+    Marcus vs Will               within-secure                     0.770     0.4413     no leakage
+    Trey vs Will                 within-secure                    -0.208     0.8353     no leakage
+    Marcus vs George             within-secure                    -0.126     0.9001     no leakage
+
+  [CPU Cycles (count)]
+    Cross-system, all candidates pooled:
+    Comparison                   Scope                            t-stat    p-value         Result
+    ----------------------------------------------------------------------------------------------
+    sequential vs secure         all candidates pooled          -150.410     0.0000   *** LEAK ***
+    parallel vs secure           all candidates pooled           -78.426     0.0000   *** LEAK ***
+    sequential vs parallel       all candidates pooled           -67.862     0.0000   *** LEAK ***
+
+    Cross-system, per candidate:
+    Comparison                   Scope                            t-stat    p-value         Result
+    ----------------------------------------------------------------------------------------------
+    sequential vs secure         candidate: Marcus               -68.447     0.0000   *** LEAK ***
+    sequential vs secure         candidate: George               -67.746     0.0000   *** LEAK ***
+    sequential vs secure         candidate: Trey                 -67.238     0.0000   *** LEAK ***
+    sequential vs secure         candidate: Will                 -67.078     0.0000   *** LEAK ***
+    sequential vs secure         candidate: Jess                 -65.830     0.0000   *** LEAK ***
+    parallel vs secure           candidate: Marcus               -36.368     0.0000   *** LEAK ***
+    parallel vs secure           candidate: George               -36.144     0.0000   *** LEAK ***
+    parallel vs secure           candidate: Will                 -35.721     0.0000   *** LEAK ***
+    parallel vs secure           candidate: Trey                 -34.346     0.0000   *** LEAK ***
+    parallel vs secure           candidate: Jess                 -32.805     0.0000   *** LEAK ***
+    sequential vs parallel       candidate: Jess                 -31.560     0.0000   *** LEAK ***
+    sequential vs parallel       candidate: Trey                 -30.512     0.0000   *** LEAK ***
+    sequential vs parallel       candidate: Marcus               -30.037     0.0000   *** LEAK ***
+    sequential vs parallel       candidate: Will                 -29.883     0.0000   *** LEAK ***
+    sequential vs parallel       candidate: George               -29.735     0.0000   *** LEAK ***
+
+    Within-parallel (candidate distinguishability):
+    Comparison                   Scope                            t-stat    p-value         Result
+    ----------------------------------------------------------------------------------------------
+    Will vs Jess                 within-parallel                  -1.755     0.0792     no leakage
+    Marcus vs Jess               within-parallel                  -1.464     0.1432     no leakage
+    Trey vs Will                 within-parallel                   1.349     0.1774     no leakage
+    George vs Jess               within-parallel                  -1.264     0.2061     no leakage
+    Marcus vs Trey               within-parallel                  -1.059     0.2897     no leakage
+    Trey vs George               within-parallel                   0.860     0.3899     no leakage
+    Will vs George               within-parallel                  -0.486     0.6271     no leakage
+    Trey vs Jess                 within-parallel                  -0.403     0.6867     no leakage
+    Marcus vs Will               within-parallel                   0.288     0.7730     no leakage
+    Marcus vs George             within-parallel                  -0.197     0.8435     no leakage
+
+    Within-secure (countermeasure effectiveness):
+    Comparison                   Scope                            t-stat    p-value         Result
+    ----------------------------------------------------------------------------------------------
+    George vs Jess               within-secure                     1.960     0.0500     no leakage
+    Marcus vs Jess               within-secure                     1.711     0.0872     no leakage
+    Trey vs George               within-secure                    -1.168     0.2426     no leakage
+    Will vs George               within-secure                    -1.042     0.2976     no leakage
+    Will vs Jess                 within-secure                     0.922     0.3567     no leakage
+    Marcus vs Trey               within-secure                     0.912     0.3616     no leakage
+    Trey vs Jess                 within-secure                     0.807     0.4198     no leakage
+    Marcus vs Will               within-secure                     0.786     0.4317     no leakage
+    Marcus vs George             within-secure                    -0.261     0.7943     no leakage
+    Trey vs Will                 within-secure                    -0.121     0.9039     no leakage
+
+------------------------------------------------------------------------------
+  SUMMARY
+------------------------------------------------------------------------------
+
+  Total TVLA violations         : 36 / 76
+  Cross-system leaks            : 36
+  Within-parallel leaks         : 0 / 20  (candidates indistinguishable)
+  Within-secure leaks           : 0 / 20
+
+  Verdict: countermeasures effective at PaddingDeadlineMs=20ms
+
+==============================================================================
