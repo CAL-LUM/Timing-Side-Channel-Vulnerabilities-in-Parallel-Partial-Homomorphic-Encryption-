@@ -144,13 +144,6 @@ def descriptiveStats(df, candidates):
 def computeOverhead(statsDF):
     # Calculate mean computational overhead of each system relative to the
     # sequential baseline, averaged across all candidates.
-    #
-    # The divergence between duration_ns and cpu_cycles overhead for the secure
-    # system is analytically significant: cpu_cycles captures only genuine
-    # computational work (dominated by CM1 ciphertext blinding), whilst
-    # duration_ns also absorbs the CM3 busy-wait padding that executes outside
-    # the cpu_cycles measurement window. The difference between the two metrics
-    # therefore isolates CM3's wall-clock contribution from the true cost of CM1.
     rows = []
     overheadSummary = {}
 
@@ -364,14 +357,6 @@ def writeReport(df, statsDF, tvlaDF, candidates, overheadSummary):
         "  cpu_cycles vs duration_ns:",
         "    duration_ns measures wall-clock elapsed time via QPC (~100ns resolution).",
         "    cpu_cycles measures processor computational work via QPC tick counter.",
-        "    OS scheduling pauses inflate duration_ns but not cpu_cycles.",
-        "    Cache stalls inflate cpu_cycles but may be hidden in duration_ns.",
-        "    CM3 (busy-wait padding) inflates duration_ns but NOT cpu_cycles,",
-        "    since the busy-wait occurs outside the cpu_cycles measurement window.",
-        "    The divergence between duration_ns and cpu_cycles overhead for the",
-        "    secure system therefore isolates CM3's wall-clock contribution from",
-        "    the true computational cost of CM1 ciphertext blinding.",
-        f"  Secure system padding deadline: {paddingDeadlineMs} ms (CM3)",
         "",
     ]
 

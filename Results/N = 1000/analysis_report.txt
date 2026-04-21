@@ -1,6 +1,6 @@
 ==============================================================================
   TVLA SECURITY ANALYSIS REPORT
-  Parallel Paillier E-Voting — Decryption Phase
+  Parallel Paillier E-Voting ï¿½ Decryption Phase
   Sequential | Parallel (Unprotected) | Secure (Countermeasures Applied)
 ==============================================================================
 
@@ -10,26 +10,18 @@
   Threshold  : |t| > 4.5
 
   Metric availability per system:
-    sequential  — duration_ns, cpu_cycles, heap_allocs, heap_bytes
-    parallel    — duration_ns, cpu_cycles
-    secure      — duration_ns, cpu_cycles
+    sequential  ï¿½ duration_ns, cpu_cycles, heap_allocs, heap_bytes
+    parallel    ï¿½ duration_ns, cpu_cycles
+    secure      ï¿½ duration_ns, cpu_cycles
     (heap metrics omitted from parallel/secure: ReadMemStats is
      stop-the-world and unsafe in concurrent goroutine context)
 
   cpu_cycles vs duration_ns:
     duration_ns measures wall-clock elapsed time via QPC (~100ns resolution).
     cpu_cycles measures processor computational work via RDTSC.
-    OS scheduling pauses inflate duration_ns but not cpu_cycles.
-    Cache stalls inflate cpu_cycles but may be hidden in duration_ns.
-    CM3 (busy-wait padding) inflates duration_ns but NOT cpu_cycles,
-    since the busy-wait occurs outside the cpu_cycles measurement window.
-    The divergence between duration_ns and cpu_cycles overhead for the
-    secure system therefore isolates CM3's wall-clock contribution from
-    the true computational cost of CM1 ciphertext blinding.
-  Secure system padding deadline: 20 ms (CM3)
 
 ------------------------------------------------------------------------------
-  DESCRIPTIVE STATISTICS — Duration (ns)
+  DESCRIPTIVE STATISTICS ï¿½ Duration (ns)
 ------------------------------------------------------------------------------
 
   System       Candidate      N           Mean            Std     CV%         Median            P99
@@ -53,7 +45,7 @@
   secure       Jess        1000     3330903.90      750810.23   22.54     3197050.00     5619506.00
 
 ------------------------------------------------------------------------------
-  DESCRIPTIVE STATISTICS — CPU Cycles (count)
+  DESCRIPTIVE STATISTICS ï¿½ CPU Cycles (count)
 ------------------------------------------------------------------------------
 
   System       Candidate      N           Mean            Std     CV%         Median            P99
@@ -77,9 +69,9 @@
   secure       Jess        1000       33350.13        7552.94   22.65       31975.00       56200.05
 
 ------------------------------------------------------------------------------
-  DESCRIPTIVE STATISTICS — Heap Allocations (count)
+  DESCRIPTIVE STATISTICS ï¿½ Heap Allocations (count)
 ------------------------------------------------------------------------------
-  (sequential only — parallel and secure omit this metric)
+  (sequential only ï¿½ parallel and secure omit this metric)
 
   System       Candidate      N           Mean            Std     CV%         Median            P99
   -------------------------------------------------------------------------------------------------
@@ -90,9 +82,9 @@
   sequential   Jess        1000          77.03           0.28    0.36          77.00          79.00
 
 ------------------------------------------------------------------------------
-  DESCRIPTIVE STATISTICS — Heap Bytes Allocated
+  DESCRIPTIVE STATISTICS ï¿½ Heap Bytes Allocated
 ------------------------------------------------------------------------------
-  (sequential only — parallel and secure omit this metric)
+  (sequential only ï¿½ parallel and secure omit this metric)
 
   System       Candidate      N           Mean            Std     CV%         Median            P99
   -------------------------------------------------------------------------------------------------
@@ -141,7 +133,7 @@
     Jess                  25582          27654          33350       +8.10%      +20.60%
 
 ------------------------------------------------------------------------------
-  TVLA RESULTS — Welch t-test  (|t| > 4.5 = leakage detected)
+  TVLA RESULTS ï¿½ Welch t-test  (|t| > 4.5 = leakage detected)
 ------------------------------------------------------------------------------
 
   [Duration (ns)]

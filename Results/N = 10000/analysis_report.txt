@@ -1,6 +1,6 @@
 ==============================================================================
   TVLA SECURITY ANALYSIS REPORT
-  Parallel Paillier E-Voting — Decryption Phase
+  Parallel Paillier E-Voting ï¿½ Decryption Phase
   Sequential | Parallel (Unprotected) | Secure (Countermeasures Applied)
 ==============================================================================
 
@@ -10,23 +10,18 @@
   Threshold  : |t| > 4.5
 
   Metric availability per system:
-    sequential  — duration_ns, cpu_cycles, heap_allocs, heap_bytes
-    parallel    — duration_ns, cpu_cycles
-    secure      — duration_ns, cpu_cycles
+    sequential  ï¿½ duration_ns, cpu_cycles, heap_allocs, heap_bytes
+    parallel    ï¿½ duration_ns, cpu_cycles
+    secure      ï¿½ duration_ns, cpu_cycles
     (heap metrics omitted from parallel/secure: ReadMemStats is
      stop-the-world and unsafe in concurrent goroutine context)
 
   cpu_cycles vs duration_ns:
     duration_ns measures wall-clock elapsed time via QPC (~100ns resolution).
     cpu_cycles measures processor computational work via RDTSC.
-    OS scheduling pauses inflate duration_ns but not cpu_cycles.
-    Cache stalls inflate cpu_cycles but may be hidden in duration_ns.
-    CM3 (busy-wait padding) inflates duration_ns but NOT cpu_cycles,
-    since the busy-wait occurs outside the cpu_cycles measurement window.
-  Secure system padding deadline: 20 ms (CM3)
 
 ------------------------------------------------------------------------------
-  DESCRIPTIVE STATISTICS — Duration (ns)
+  DESCRIPTIVE STATISTICS ï¿½ Duration (ns)
 ------------------------------------------------------------------------------
 
   System       Candidate      N           Mean            Std     CV%         Median            P99
@@ -50,7 +45,7 @@
   secure       Jess       10000     2955038.43      566876.02   19.18     2786900.00     4793702.00
 
 ------------------------------------------------------------------------------
-  DESCRIPTIVE STATISTICS — CPU Cycles (count)
+  DESCRIPTIVE STATISTICS ï¿½ CPU Cycles (count)
 ------------------------------------------------------------------------------
 
   System       Candidate      N           Mean            Std     CV%         Median            P99
@@ -74,9 +69,9 @@
   secure       Jess       10000       29579.87        5699.13   19.27       27888.00       48006.18
 
 ------------------------------------------------------------------------------
-  DESCRIPTIVE STATISTICS — Heap Allocations (count)
+  DESCRIPTIVE STATISTICS ï¿½ Heap Allocations (count)
 ------------------------------------------------------------------------------
-  (sequential only — parallel and secure omit this metric)
+  (sequential only ï¿½ parallel and secure omit this metric)
 
   System       Candidate      N           Mean            Std     CV%         Median            P99
   -------------------------------------------------------------------------------------------------
@@ -87,9 +82,9 @@
   sequential   Jess       10000          77.03           0.26    0.34          77.00          79.00
 
 ------------------------------------------------------------------------------
-  DESCRIPTIVE STATISTICS — Heap Bytes Allocated
+  DESCRIPTIVE STATISTICS ï¿½ Heap Bytes Allocated
 ------------------------------------------------------------------------------
-  (sequential only — parallel and secure omit this metric)
+  (sequential only ï¿½ parallel and secure omit this metric)
 
   System       Candidate      N           Mean            Std     CV%         Median            P99
   -------------------------------------------------------------------------------------------------
@@ -100,7 +95,7 @@
   sequential   Jess       10000       29852.08         252.67    0.85       29824.00       32136.00
 
 ------------------------------------------------------------------------------
-  TVLA RESULTS — Welch t-test  (|t| > 4.5 = leakage detected)
+  TVLA RESULTS ï¿½ Welch t-test  (|t| > 4.5 = leakage detected)
 ------------------------------------------------------------------------------
 
   [Duration (ns)]
