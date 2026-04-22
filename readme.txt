@@ -175,4 +175,13 @@ The Python analysis script is platform-independent.
 
 ---
 
+## System Specifications
+CPU	AMD Ryzen 7 7800X3D 8-Core 4.2GHz Base 5.0GHz boost
+GPU	AMD Radeon RX 7700XT
+RAM	Corsair Vengeance DDR5 32GB 6000MHz CL30
+Storage	Samsung SSD 990 PRO 2TB
+Operating System	Windows 11 Home
+
+---
+
 *University of Gloucestershire — BSc Cyber Security, 2026*
